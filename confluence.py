@@ -3,6 +3,7 @@ from rate_differential import get_hawkish_dovish_ranking
 from cot_extremes import get_cot_percentile
 from yield_curve import get_yield_curve_score
 from seasonality import get_seasonal_score
+from political_risk import get_political_risk_score, get_political_risk_label
 from config import CURRENCIES
 from forex_pairs import get_trade_direction
 
@@ -74,6 +75,21 @@ def get_confluence_score(currency):
     else:
         signals.append(0)
         reasons.append(f"⚪ {yc_label}")
+
+    # 5. Political Risk
+    pol_score, pol_headlines = get_political_risk_score(currency)
+    if pol_score >= 20:
+        signals.append(0.5)
+        reasons.append(f"✅ Political Risk Low ({pol_score})")
+    elif pol_score <= -20:
+        signals.append(-1)
+        reasons.append(f"❌ Political Risk High ({pol_score})")
+    elif pol_score <= -10:
+        signals.append(-0.5)
+        reasons.append(f"🟠 Political Risk Elevated ({pol_score})")
+    else:
+        signals.append(0)
+        reasons.append(f"⚪ Political Risk Neutral ({pol_score})")
 
     # 5. Seasonality
     seas_score, seas_signal, _, _ = get_seasonal_score(currency)

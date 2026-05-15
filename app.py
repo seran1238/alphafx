@@ -10,6 +10,7 @@ from confluence import get_confluence_score, get_best_confluences
 from forex_pairs import get_trade_direction
 from yield_curve import get_yield_curve_score, get_all_yield_curves
 from seasonality import get_seasonal_score, get_all_seasonality
+from political_risk import get_political_risk_score, get_political_risk_label
 
 st.set_page_config(page_title="AlphaFX", layout="wide", page_icon="📡")
 
@@ -25,12 +26,13 @@ with col2:
         st.cache_data.clear()
         st.rerun()
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🎯 Confluence",
     "🏦 COT Extremes",
     "🌍 Macro & Rates",
     "📈 Yield Curve & Seasonality",
-    "📅 Event Calendar"
+    "📅 Event Calendar",
+    "🗞️ Political Risk"
 ])
 
 with tab1:
