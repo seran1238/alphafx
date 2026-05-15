@@ -3,15 +3,17 @@ from rate_differential import get_hawkish_dovish_ranking
 from cot_extremes import get_cot_percentile
 from yield_curve import get_yield_curve_score
 from seasonality import get_seasonal_score
-from political_risk import get_political_risk_score, get_political_risk_label
+from political_risk import get_political_risk_score
+from economic_regime import get_regime_bias
 from config import CURRENCIES
 from forex_pairs import get_trade_direction
+
 
 def get_confluence_score(currency):
     signals = []
     reasons = []
 
-    # 1. Zentralbank Bias
+    # 1. Central Bank Bias
     bias = get_central_bank_bias(currency)
     if bias["trend"] == "Hiking":
         signals.append(1)
@@ -28,13 +30,13 @@ def get_confluence_score(currency):
     position = next((i for i, r in enumerate(ranking) if r["currency"] == currency), 4)
     if position <= 1:
         signals.append(1)
-        reasons.append(f"✅ High Rate Rank #{position+1}")
+        reasons.append(f"✅ High Rate Rank #{position + 1}")
     elif position >= 6:
         signals.append(-1)
-        reasons.append(f"❌ Low Rate Rank #{position+1}")
+        reasons.append(f"❌ Low Rate Rank #{position + 1}")
     else:
         signals.append(0)
-        reasons.append(f"⚪ Mid Rate Rank #{position+1}")
+        reasons.append(f"⚪ Mid Rate Rank #{position + 1}")
 
     # 3. COT Extremes
     if currency != "USD":
@@ -77,7 +79,7 @@ def get_confluence_score(currency):
         reasons.append(f"⚪ {yc_label}")
 
     # 5. Political Risk
-    pol_score, pol_headlines = get_political_risk_score(currency)
+    pol_score, _ = get_political_risk_score(currency)
     if pol_score >= 20:
         signals.append(0.5)
         reasons.append(f"✅ Political Risk Low ({pol_score})")
@@ -91,7 +93,7 @@ def get_confluence_score(currency):
         signals.append(0)
         reasons.append(f"⚪ Political Risk Neutral ({pol_score})")
 
-    # 5. Seasonality
+    # 6. Seasonality
     seas_score, seas_signal, _, _ = get_seasonal_score(currency)
     if seas_score >= 5:
         signals.append(0.5)
@@ -101,56 +103,66 @@ def get_confluence_score(currency):
         reasons.append(f"❌ {seas_signal}")
     else:
         signals.append(0)
-        reasons.append(f"⚪ {seas_signal}")
+        reasons.append(f"⚪ Seasonality Neutral ({seas_score})")
 
+    # 7. Economic Regime (Dalio)
+    regime_score, regime_label = get_regime_bias(currency)
+    if regime_score >= 15:
+        signals.append(1)
+        reasons.append(f"✅ Regime Tailwind: {regime_label}")
+    elif regime_score >= 5:
+        signals.append(0.5)
+        reasons.append(f"🟡 Regime Mild Tailwind: {regime_label}")
+    elif regime_score <= -15:
+        signals.append(-1)
+        reasons.append(f"❌ Regime Headwind: {regime_label}")
+    elif regime_score <= -5:
+        signals.append(-0.5)
+        reasons.append(f"🟠 Regime Mild Headwind: {regime_label}")
+    else:
+        signals.append(0)
+        reasons.append(f"⚪ Regime Neutral: {regime_label}")
+
+    # Aggregate
     bullish = sum(1 for s in signals if s > 0)
     bearish = sum(1 for s in signals if s < 0)
-    total = len(signals)
+    total   = len(signals)
 
-    # Konflikt-Erkennung
-    cb_bullish = signals[0] > 0 if len(signals) > 0 else False
-    cot_contrarian_bearish = any("Contrarian Bearish" in r for r in reasons)
-    cot_contrarian_bullish = any("Contrarian Bullish" in r for r in reasons)
-    cb_bearish = signals[0] < 0 if len(signals) > 0 else False
+    cb_bullish          = signals[0] > 0 if signals else False
+    cb_bearish          = signals[0] < 0 if signals else False
+    cot_contrarian_bear = any("Contrarian Bearish" in r for r in reasons)
+    cot_contrarian_bull = any("Contrarian Bullish" in r for r in reasons)
 
-    if cb_bullish and cot_contrarian_bearish:
+    if cb_bullish and cot_contrarian_bear:
         direction = "MIXED"
-        strength = "⚠️ Avoid — CB Bullish but COT Crowded Long"
-    elif cb_bearish and cot_contrarian_bullish:
+        strength  = "⚠️ Avoid — CB Bullish but COT Crowded Long"
+    elif cb_bearish and cot_contrarian_bull:
         direction = "MIXED"
-        strength = "⚠️ Avoid — CB Bearish but COT Crowded Short"
+        strength  = "⚠️ Avoid — CB Bearish but COT Crowded Short"
     elif bullish >= total * 0.75:
-        direction = "BULLISH"
-        strength = "🟢 Strong"
+        direction, strength = "BULLISH", "🟢 Strong"
     elif bullish >= total * 0.5:
-        direction = "BULLISH"
-        strength = "🟡 Moderate"
+        direction, strength = "BULLISH", "🟡 Moderate"
     elif bearish >= total * 0.75:
-        direction = "BEARISH"
-        strength = "🔴 Strong"
+        direction, strength = "BEARISH", "🔴 Strong"
     elif bearish >= total * 0.5:
-        direction = "BEARISH"
-        strength = "🟠 Moderate"
+        direction, strength = "BEARISH", "🟠 Moderate"
     else:
-        direction = "NEUTRAL"
-        strength = "⚪ No Signal"
+        direction, strength = "NEUTRAL", "⚪ No Signal"
 
     return {
-        "currency": currency,
-        "direction": direction,
-        "strength": strength,
+        "currency":      currency,
+        "direction":     direction,
+        "strength":      strength,
         "bullish_count": bullish,
         "bearish_count": bearish,
-        "total": total,
-        "reasons": reasons
+        "total":         total,
+        "reasons":       reasons,
     }
 
-def get_best_confluences():
-    results = []
-    for c in CURRENCIES:
-        r = get_confluence_score(c)
-        results.append(r)
 
+def get_best_confluences():
+    results = [get_confluence_score(c) for c in CURRENCIES]
     bullish = [r for r in results if r["direction"] == "BULLISH" and "Strong" in r["strength"]]
     bearish = [r for r in results if r["direction"] == "BEARISH" and "Strong" in r["strength"]]
 
@@ -159,14 +171,14 @@ def get_best_confluences():
         for s in bearish:
             trade = get_trade_direction(b["currency"], s["currency"])
             setups.append({
-                "trade": trade,
-                "long": b["currency"],
-                "short": s["currency"],
-                "long_strength": b["strength"],
+                "trade":          trade,
+                "long":           b["currency"],
+                "short":          s["currency"],
+                "long_strength":  b["strength"],
                 "short_strength": s["strength"],
-                "long_reasons": b["reasons"],
-                "short_reasons": s["reasons"],
-                "confluence": b["bullish_count"] + s["bearish_count"]
+                "long_reasons":   b["reasons"],
+                "short_reasons":  s["reasons"],
+                "confluence":     b["bullish_count"] + s["bearish_count"],
             })
 
     return sorted(setups, key=lambda x: x["confluence"], reverse=True)
