@@ -59,13 +59,13 @@ def get_central_bank_bias(currency):
     # Diese Daten werden manuell gepflegt und wöchentlich aktualisiert
     # In einer späteren Version via NLP aus Zentralbank-Statements extrahiert
     BIAS = {
-        "USD": {"bias": "Neutral", "last_change": "Hold", "rate": 3.625, "trend": "Hold"},
-        "EUR": {"bias": "Hawkish", "last_change": "Hold", "rate": 2.00, "trend": "Hiking"},
-        "GBP": {"bias": "Neutral", "last_change": "Hold", "rate": 3.75, "trend": "Hold"},
-        "JPY": {"bias": "Hawkish", "last_change": "Hold", "rate": 0.75, "trend": "Hiking"},
-        "CHF": {"bias": "Neutral", "last_change": "Hold", "rate": 0.00, "trend": "Hold"},
-        "AUD": {"bias": "Hawkish", "last_change": "Hike", "rate": 4.35, "trend": "Hiking"},
-        "CAD": {"bias": "Neutral", "last_change": "Hold", "rate": 2.75, "trend": "Hold"},
-        "NZD": {"bias": "Neutral", "last_change": "Hold", "rate": 2.25, "trend": "Hold"},
+        "USD": {"bias": "Dovish", "last_change": "Cut", "rate": 4.33, "trend": "Cutting"},
+        "EUR": {"bias": "Dovish", "last_change": "Cut", "rate": 2.40, "trend": "Cutting"},
+        "GBP": {"bias": "Dovish", "last_change": "Cut", "rate": 4.25, "trend": "Cutting"},
+        "JPY": {"bias": "Hawkish", "last_change": "Hike", "rate": 0.50, "trend": "Hiking"},
+        "CHF": {"bias": "Dovish", "last_change": "Cut", "rate": 0.25, "trend": "Cutting"},
+        "AUD": {"bias": "Dovish", "last_change": "Cut", "rate": 4.10, "trend": "Cutting"},
+        "CAD": {"bias": "Dovish", "last_change": "Cut", "rate": 2.75, "trend": "Cutting"},
+        "NZD": {"bias": "Dovish", "last_change": "Cut", "rate": 3.50, "trend": "Cutting"},
     }
     return BIAS.get(currency, {"bias": "Unknown", "last_change": "Unknown", "rate": 0, "trend": "Unknown"})

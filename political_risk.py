@@ -28,6 +28,51 @@ RISK_KEYWORDS = {
 
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 
+COUNTRY_KEYWORDS = {
+    "USD": ["federal reserve", "fed", "us economy", "treasury", "powell"],
+    "EUR": ["ecb", "european central bank", "eurozone", "lagarde"],
+    "GBP": ["bank of england", "boe", "uk economy", "starmer"],
+    "JPY": ["bank of japan", "boj", "japan economy", "ueda"],
+    "CHF": ["snb", "swiss national bank", "swiss franc"],
+    "AUD": ["rba", "reserve bank australia", "australia economy"],
+    "CAD": ["bank of canada", "boc", "canada economy"],
+    "NZD": ["rbnz", "reserve bank new zealand", "new zealand economy"],
+}
+
+RISK_NEGATIVE = ["crisis", "resign", "collapse", "recession", "default",
+                 "scandal", "war", "conflict", "sanction", "stagflation",
+                 "no confidence", "snap election", "tariff", "coup"]
+RISK_POSITIVE = ["growth", "surplus", "reform", "recovery", "strong",
+                 "stability", "expansion", "trade deal", "stimulus"]
+
+def _finnhub_fallback(currency):
+    from calendar_data import FINNHUB_KEY
+    keywords = COUNTRY_KEYWORDS.get(currency, [])
+    if not keywords:
+        return 0, []
+    try:
+        url = f"https://finnhub.io/api/v1/news?category=general&token={FINNHUB_KEY}"
+        r = requests.get(url, timeout=10)
+        if r.status_code != 200:
+            return 0, []
+        score = 0
+        headlines = []
+        for article in r.json()[:50]:
+            text = (article.get("headline","") + " " + article.get("summary","")).lower()
+            if not any(kw in text for kw in keywords):
+                continue
+            neg = sum(1 for kw in RISK_NEGATIVE if kw in text)
+            pos = sum(1 for kw in RISK_POSITIVE if kw in text)
+            if neg > pos:
+                score -= neg * 5
+                headlines.append(f"🔴 {article.get('headline','')[:80]}")
+            elif pos > neg:
+                score += pos * 5
+                headlines.append(f"🟢 {article.get('headline','')[:80]}")
+        return max(-100, min(100, score)), headlines[:5]
+    except Exception as e:
+        return 0, [f"Finnhub error: {e}"]
+
 
 @lru_cache(maxsize=8)
 def get_political_risk_score(currency):
@@ -48,6 +93,8 @@ def get_political_risk_score(currency):
 
     try:
         r = requests.get(GDELT_DOC_URL, params=params, timeout=12)
+        if r.status_code == 429:
+            return _finnhub_fallback(currency)
         if r.status_code != 200:
             return 0, [f"GDELT HTTP {r.status_code}"]
 
