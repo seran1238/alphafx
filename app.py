@@ -54,6 +54,12 @@ try:
 except:
     pass
 
+def conf_color(c):
+    if c >= 90: return "🟢🟢"
+    elif c >= 70: return "🟢"
+    elif c >= 50: return "🟡"
+    else: return "⚫"
+
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "🔥 Pair Dashboard",
     "🎯 Confluence",
@@ -74,33 +80,66 @@ with tab1:
         all_confluence = [get_confluence_score(c) for c in CURRENCIES]
 
     if pairs:
-        top_longs = [p for p in pairs if p["Direction"] == "LONG"][:5]
-        top_shorts = [p for p in pairs if p["Direction"] == "SHORT"][:5]
+        # Elite Setups
+        elite = [p for p in pairs if p["Confluence %"] >= 70 and abs(p["Pair Score"]) >= 50]
+        if elite:
+            st.markdown("### 🏆 Elite Setups")
+            st.caption("Confluence >= 70% and |Pair Score| >= 50")
+            for p in elite:
+                direction_label = "Short" if p["Pair Score"] < 0 else "Long"
+                st.success(
+                    f"**{p['Pair']}** {direction_label} | "
+                    f"Score: `{p['Pair Score']:+.1f}` | "
+                    f"Confluence: {conf_color(p['Confluence %'])} `{p['Confluence %']}%` | "
+                    f"Final Score: `{p['Final Score']}`"
+                )
+            st.markdown("---")
+
+        quality_pairs = [p for p in pairs if p["Confluence %"] >= 50]
+        top_longs = [p for p in quality_pairs if p["Pair Score"] > 0][:5]
+        top_shorts = [p for p in quality_pairs if p["Pair Score"] < 0][:5]
 
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("### 📈 Top Longs")
-            for p in top_longs:
-                base_flag = flags.get(p["Base"], "")
-                quote_flag = flags.get(p["Quote"], "")
-                conflicts = p["Base Conflicts"] + p["Quote Conflicts"]
-                conflict_warn = " ⚠️" if conflicts else ""
-                st.markdown(
-                    f"**{base_flag}{quote_flag} {p['Pair']}** — Score: `+{p['Pair Score']}` | "
-                    f"Confluence: `{p['Confluence %']}%` | {p['Signal']}{conflict_warn}"
-                )
+            if top_longs:
+                for p in top_longs:
+                    st.markdown(
+                        f"**{flags.get(p['Base'],'')} {p['Pair']}** | "
+                        f"Score: `{p['Pair Score']:+.1f}` | "
+                        f"{conf_color(p['Confluence %'])} `{p['Confluence %']}%` | {p['Signal']}"
+                    )
+            else:
+                st.info("No quality long setups (Confluence < 50%)")
 
         with col2:
             st.markdown("### 📉 Top Shorts")
-            for p in top_shorts:
-                base_flag = flags.get(p["Base"], "")
-                quote_flag = flags.get(p["Quote"], "")
-                conflicts = p["Base Conflicts"] + p["Quote Conflicts"]
-                conflict_warn = " ⚠️" if conflicts else ""
-                st.markdown(
-                    f"**{base_flag}{quote_flag} {p['Pair']}** — Score: `-{p['Pair Score']}` | "
-                    f"Confluence: `{p['Confluence %']}%` | {p['Signal']}{conflict_warn}"
-                )
+            if top_shorts:
+                for p in top_shorts:
+                    st.markdown(
+                        f"**{flags.get(p['Base'],'')} {p['Pair']}** | "
+                        f"Score: `{p['Pair Score']:+.1f}` | "
+                        f"{conf_color(p['Confluence %'])} `{p['Confluence %']}%` | {p['Signal']}"
+                    )
+            else:
+                st.info("No quality short setups (Confluence < 50%)")
+
+        st.markdown("---")
+        st.subheader("📋 Signal Explanations")
+        for p in [p for p in pairs if p["Confluence %"] >= 50][:6]:
+            direction_label = "Short" if p["Pair Score"] < 0 else "Long"
+            with st.expander(f"**{p['Pair']}** {direction_label} | Score: `{p['Pair Score']:+.1f}` | {conf_color(p['Confluence %'])} `{p['Confluence %']}%`"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    label = "Bearish" if p["Pair Score"] < 0 else "Bullish"
+                    st.markdown(f"**{flags.get(p['Base'],'')} {p['Base']} — {label} ({p['Base Score']:+.1f})**")
+                    for r in p.get("Base Reasons", [])[:6]:
+                        st.markdown(f"  {r}")
+                with col2:
+                    label = "Bullish" if p["Pair Score"] < 0 else "Bearish"
+                    st.markdown(f"**{flags.get(p['Quote'],'')} {p['Quote']} — {label} ({p['Quote Score']:+.1f})**")
+                    for r in p.get("Quote Reasons", [])[:6]:
+                        st.markdown(f"  {r}")
 
         st.subheader("📊 All Pairs Ranked")
         pair_table = []
@@ -108,7 +147,7 @@ with tab1:
             pair_table.append({
                 "Pair": p["Pair"],
                 "Direction": p["Direction"],
-                "Pair Score": p["Pair Score"] if p["Direction"] == "LONG" else -p["Pair Score"],
+                "Pair Score": p["Pair Score"],
                 "Signal": p["Signal"],
                 "Confluence %": p["Confluence %"],
                 "Base Score": p["Base Score"],
