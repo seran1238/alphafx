@@ -6,7 +6,7 @@ from config import CURRENCIES
 from calendar_data import get_central_bank_bias, get_upcoming_events
 from rate_differential import get_all_differentials, get_hawkish_dovish_ranking
 from cot_extremes import get_cot_percentile, load_historical_cot
-from confluence import get_confluence_score, get_best_confluences, get_currency_ranking
+from confluence import get_confluence_score, get_best_confluences, get_currency_ranking, get_pair_ranking
 from forex_pairs import get_trade_direction
 from yield_curve import get_yield_curve_score, get_all_yield_curves
 from seasonality import get_seasonal_score, get_all_seasonality
@@ -54,7 +54,8 @@ try:
 except:
     pass
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    "🔥 Pair Dashboard",
     "🎯 Confluence",
     "🏦 COT Extremes",
     "🌍 Macro & Rates",
@@ -65,11 +66,90 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 ])
 
 with tab1:
+    st.subheader("🔥 Pair Score Ranking")
+    st.caption("Pair Score = Currency A Net Score − Currency B Net Score. Higher = stronger divergence.")
+
+    with st.spinner("Calculating pair scores..."):
+        pairs = get_pair_ranking()
+        all_confluence = [get_confluence_score(c) for c in CURRENCIES]
+
+    if pairs:
+        top_longs = [p for p in pairs if p["Direction"] == "LONG"][:5]
+        top_shorts = [p for p in pairs if p["Direction"] == "SHORT"][:5]
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### 📈 Top Longs")
+            for p in top_longs:
+                base_flag = flags.get(p["Base"], "")
+                quote_flag = flags.get(p["Quote"], "")
+                conflicts = p["Base Conflicts"] + p["Quote Conflicts"]
+                conflict_warn = " ⚠️" if conflicts else ""
+                st.markdown(
+                    f"**{base_flag}{quote_flag} {p['Pair']}** — Score: `+{p['Pair Score']}` | "
+                    f"Confluence: `{p['Confluence']}%` | {p['Signal']}{conflict_warn}"
+                )
+
+        with col2:
+            st.markdown("### 📉 Top Shorts")
+            for p in top_shorts:
+                base_flag = flags.get(p["Base"], "")
+                quote_flag = flags.get(p["Quote"], "")
+                conflicts = p["Base Conflicts"] + p["Quote Conflicts"]
+                conflict_warn = " ⚠️" if conflicts else ""
+                st.markdown(
+                    f"**{base_flag}{quote_flag} {p['Pair']}** — Score: `-{p['Pair Score']}` | "
+                    f"Confluence: `{p['Confluence']}%` | {p['Signal']}{conflict_warn}"
+                )
+
+        st.subheader("📊 All Pairs Ranked")
+        pair_table = []
+        for p in pairs:
+            pair_table.append({
+                "Pair": p["Pair"],
+                "Direction": p["Direction"],
+                "Pair Score": p["Pair Score"] if p["Direction"] == "LONG" else -p["Pair Score"],
+                "Signal": p["Signal"],
+                "Confluence %": p["Confluence"],
+                "Base Score": p["Base Score"],
+                "Quote Score": p["Quote Score"],
+                "Conflicts": "⚠️" if p["Base Conflicts"] or p["Quote Conflicts"] else "✅"
+            })
+        df_pairs = pd.DataFrame(pair_table).sort_values("Pair Score", ascending=False)
+        st.dataframe(df_pairs, use_container_width=True, hide_index=True)
+
+        st.subheader("📊 Pair Score Bar Chart")
+        fig_pairs = go.Figure()
+        for p in pair_table:
+            score = p["Pair Score"]
+            color = "#2ecc71" if score > 25 else "#e74c3c" if score < -25 else "#e67e22"
+            fig_pairs.add_trace(go.Bar(
+                x=[p["Pair"]],
+                y=[score],
+                marker_color=color,
+                name=p["Pair"],
+                text=f"{score:+.0f}",
+                textposition="outside"
+            ))
+        fig_pairs.update_layout(
+            title="Pair Score Ranking",
+            showlegend=False,
+            plot_bgcolor="#1e1e2e",
+            paper_bgcolor="#1e1e2e",
+            font_color="white",
+            height=400
+        )
+        st.plotly_chart(fig_pairs, use_container_width=True)
+    else:
+        st.info("No significant pair divergences found at this time.")
+
+with tab2:
     st.subheader("🎯 High Confluence Trade Setups")
     st.caption("Only shows setups where macro, rates, COT, yield curve AND regime all align")
     with st.spinner("Calculating confluence..."):
         setups = get_best_confluences()
-        all_confluence = [get_confluence_score(c) for c in CURRENCIES]
+        if not 'all_confluence' in dir():
+            all_confluence = [get_confluence_score(c) for c in CURRENCIES]
     if setups:
         for setup in setups[:3]:
             conf_pct = setup.get("pair_confidence", 0)
@@ -111,7 +191,7 @@ with tab1:
     for r in ranking_data:
         c = r["currency"]
         net = r.get("net_score", 0)
-        color = "#2ecc71" if net > 15 else "#e74c3c" if net < -15 else "#e67e22"
+        color = "#2ecc71" if net > 25 else "#e74c3c" if net < -25 else "#e67e22"
         fig_rank.add_trace(go.Bar(
             x=[f"{flags.get(c,'')} {c}"],
             y=[net],
@@ -146,7 +226,7 @@ with tab1:
         if edge:
             st.markdown(f"**{flags.get(c,'')} {c}:** {edge}")
 
-with tab2:
+with tab3:
     st.subheader("🏦 COT Positioning Extremes")
     st.caption("Extreme positioning = contrarian signal. 90%ile long = potential reversal down.")
     with st.spinner("Loading COT data..."):
@@ -167,7 +247,6 @@ with tab2:
                 })
     if cot_data:
         st.dataframe(pd.DataFrame(cot_data), use_container_width=True, hide_index=True)
-
     st.subheader("📊 Weekly Net Change & OI Confirmation")
     change_data = []
     for c in CURRENCIES:
@@ -185,7 +264,6 @@ with tab2:
             })
     if change_data:
         st.dataframe(pd.DataFrame(change_data), use_container_width=True, hide_index=True)
-
     st.subheader("COT History Chart")
     selected = st.selectbox("Select Currency", [c for c in CURRENCIES if c != "USD"])
     cot_detail = get_cot_percentile(selected)
@@ -215,7 +293,7 @@ with tab2:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-with tab3:
+with tab4:
     st.subheader("🌍 Central Bank Bias & Rate Differentials")
     with st.spinner("Loading macro data..."):
         ranking = get_hawkish_dovish_ranking()
@@ -259,7 +337,7 @@ with tab3:
     )
     st.plotly_chart(fig2, use_container_width=True)
 
-with tab4:
+with tab5:
     st.subheader("📈 Yield Curve & Seasonality")
     col1, col2 = st.columns(2)
     with col1:
@@ -311,7 +389,7 @@ with tab4:
     )
     st.plotly_chart(fig3, use_container_width=True)
 
-with tab5:
+with tab6:
     st.subheader("📅 Upcoming High Impact Events")
     st.caption("Next 14 days — events that can move currency markets")
     with st.spinner("Loading calendar..."):
@@ -328,7 +406,7 @@ with tab5:
     else:
         st.info("No upcoming high impact events found or API limit reached.")
 
-with tab6:
+with tab7:
     st.subheader("🗞️ Political Risk")
     st.caption("Only shown when risk is elevated — neutral signals are filtered out.")
     for c in CURRENCIES:
@@ -340,7 +418,7 @@ with tab6:
                 for h in headlines[:3]:
                     st.markdown(f"  - {h}")
 
-with tab7:
+with tab8:
     st.subheader("📊 Economic Regime — Dalio Four Quadrants")
     st.caption("Based on Growth Momentum + Inflation Momentum from FRED data")
     regime_data = []
