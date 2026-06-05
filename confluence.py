@@ -258,3 +258,60 @@ def get_best_confluences():
 def get_currency_ranking():
     results = [get_confluence_score(c) for c in CURRENCIES]
     return sorted(results, key=lambda x: x["net_score"], reverse=True)
+
+
+def _pair_signal(score):
+    if score >= 50:
+        return "✅ Strong Long"
+    elif score >= 25:
+        return "🟡 Long"
+    elif score <= -50:
+        return "🔴 Strong Short"
+    elif score <= -25:
+        return "🟠 Short"
+    else:
+        return "⚪ Neutral"
+
+def get_pair_ranking():
+    currency_scores = {c: get_confluence_score(c) for c in CURRENCIES}
+    pairs = []
+    seen = set()
+    for a in CURRENCIES:
+        for b in CURRENCIES:
+            if a == b:
+                continue
+            key = tuple(sorted([a, b]))
+            if key in seen:
+                continue
+            seen.add(key)
+            score_a = currency_scores[a]["net_score"]
+            score_b = currency_scores[b]["net_score"]
+            pair_score = score_a - score_b
+            if abs(pair_score) < 20:
+                continue
+            if pair_score > 0:
+                base, quote = a, b
+                direction = "LONG"
+            else:
+                base, quote = b, a
+                direction = "SHORT"
+                pair_score = abs(pair_score)
+            trade = get_trade_direction(base, quote)
+            confluence = min(100, round(abs(pair_score) * 1.2))
+            signal = _pair_signal(pair_score if direction == "LONG" else -pair_score)
+            pairs.append({
+                "Pair": trade,
+                "Base": base,
+                "Quote": quote,
+                "Direction": direction,
+                "Pair Score": round(pair_score, 1),
+                "Signal": signal,
+                "Confluence": confluence,
+                "Base Score": currency_scores[base]["net_score"],
+                "Quote Score": currency_scores[quote]["net_score"],
+                "Base Strength": currency_scores[base]["strength"],
+                "Quote Strength": currency_scores[quote]["strength"],
+                "Base Conflicts": currency_scores[base].get("conflicts", []),
+                "Quote Conflicts": currency_scores[quote].get("conflicts", []),
+            })
+    return sorted(pairs, key=lambda x: x["Pair Score"], reverse=True)
