@@ -44,7 +44,7 @@ try:
     elif gdp_val <= 0 and inflation_mom > 0:
         regime = "⚠️ Stagflation"; regime_desc = "Growth↓ Inflation↑ — Gold, JPY, CHF"
     else:
-        regime = "❄️ Deflation
+        regime = "Deflation/Recession"; regime_desc = "Growth down Inflation down - JPY, USD, Bonds"
 
 cat > app.py << 'ENDOFFILE'
 import streamlit as st
@@ -93,7 +93,7 @@ try:
     elif gdp_val <= 0 and inflation_mom > 0:
         regime = "⚠️ Stagflation"; regime_desc = "Growth↓ Inflation↑ — Gold, JPY, CHF"
     else:
-        regime = "Deflation/Recession"; regime_desc = "Growth↓ Inflation↓ — JPY, USD, Bonds"
+        regime = "Deflation/Recession"; regime_desc = "Growth down Inflation down - JPY, USD, Bonds"
     st.info(f"**{regime}** — {regime_desc} | Growth: {gdp_val:+.2f}% | Inflation MoM: {inflation_mom:+.2f}%")
 except:
     pass
