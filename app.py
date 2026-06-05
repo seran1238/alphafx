@@ -110,7 +110,7 @@ with tab1:
                 "Direction": p["Direction"],
                 "Pair Score": p["Pair Score"] if p["Direction"] == "LONG" else -p["Pair Score"],
                 "Signal": p["Signal"],
-                "Confluence %": p["Confluence"],
+                "Confluence %": p["Confluence %"],
                 "Base Score": p["Base Score"],
                 "Quote Score": p["Quote Score"],
                 "Conflicts": "⚠️" if p["Base Conflicts"] or p["Quote Conflicts"] else "✅"
