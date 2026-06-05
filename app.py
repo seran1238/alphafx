@@ -48,7 +48,7 @@ try:
         regime = "⚠️ Stagflation"
         regime_desc = "Growth↓ Inflation↑ — Gold, JPY, CHF"
     else:
-        regime = "❄️ Deflation/Recession"
+        regime = "Deflation/Recession"
         regime_desc = "Growth↓ Inflation↓ — JPY, USD, Bonds"
     st.info(f"**{regime}** — {regime_desc} | Growth: {gdp_val:+.2f}% | Inflation MoM: {inflation_mom:+.2f}%")
 except:
