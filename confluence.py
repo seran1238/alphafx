@@ -272,46 +272,58 @@ def _pair_signal(score):
     else:
         return "⚪ Neutral"
 
+def _pair_direction(score):
+    if score > 0:
+        return "LONG"
+    elif score < 0:
+        return "SHORT"
+    return "NEUTRAL"
+
 def get_pair_ranking():
+    STANDARD_PAIRS = [
+        ("EUR", "USD"), ("GBP", "USD"), ("AUD", "USD"), ("NZD", "USD"),
+        ("USD", "JPY"), ("USD", "CHF"), ("USD", "CAD"),
+        ("EUR", "JPY"), ("GBP", "JPY"), ("AUD", "JPY"), ("NZD", "JPY"),
+        ("CAD", "JPY"), ("CHF", "JPY"),
+        ("EUR", "GBP"), ("EUR", "AUD"), ("EUR", "CAD"), ("EUR", "CHF"),
+        ("GBP", "AUD"), ("GBP", "CAD"), ("GBP", "CHF"),
+        ("AUD", "CAD"), ("AUD", "NZD"), ("AUD", "CHF"),
+        ("NZD", "CAD"), ("NZD", "CHF"), ("CAD", "CHF"),
+    ]
     currency_scores = {c: get_confluence_score(c) for c in CURRENCIES}
     pairs = []
-    seen = set()
-    for a in CURRENCIES:
-        for b in CURRENCIES:
-            if a == b:
-                continue
-            key = tuple(sorted([a, b]))
-            if key in seen:
-                continue
-            seen.add(key)
-            score_a = currency_scores[a]["net_score"]
-            score_b = currency_scores[b]["net_score"]
-            pair_score = score_a - score_b
-            if abs(pair_score) < 20:
-                continue
-            if pair_score > 0:
-                base, quote = a, b
-                direction = "LONG"
-            else:
-                base, quote = b, a
-                direction = "SHORT"
-                pair_score = abs(pair_score)
-            trade = get_trade_direction(base, quote)
-            confluence = min(100, round(abs(pair_score) * 1.2))
-            signal = _pair_signal(pair_score if direction == "LONG" else -pair_score)
-            pairs.append({
-                "Pair": trade,
-                "Base": base,
-                "Quote": quote,
-                "Direction": direction,
-                "Pair Score": round(pair_score, 1),
-                "Signal": signal,
-                "Confluence": confluence,
-                "Base Score": currency_scores[base]["net_score"],
-                "Quote Score": currency_scores[quote]["net_score"],
-                "Base Strength": currency_scores[base]["strength"],
-                "Quote Strength": currency_scores[quote]["strength"],
-                "Base Conflicts": currency_scores[base].get("conflicts", []),
-                "Quote Conflicts": currency_scores[quote].get("conflicts", []),
-            })
-    return sorted(pairs, key=lambda x: x["Pair Score"], reverse=True)
+    for base, quote in STANDARD_PAIRS:
+        if base not in currency_scores or quote not in currency_scores:
+            continue
+        base_score = currency_scores[base]["net_score"]
+        quote_score = currency_scores[quote]["net_score"]
+        pair_score = round(base_score - quote_score, 1)
+        if abs(pair_score) < 20:
+            continue
+        conflicts = (
+            currency_scores[base].get("conflicts", []) +
+            currency_scores[quote].get("conflicts", [])
+        )
+        raw_conf = min(100, round(abs(pair_score) * 1.2))
+        confidence = max(0, raw_conf - len(conflicts) * 10)
+        direction = _pair_direction(pair_score)
+        signal = _pair_signal(pair_score)
+        final_score = round(abs(pair_score) * (confidence / 100), 1)
+        pairs.append({
+            "Pair": f"{base}/{quote}",
+            "Base": base,
+            "Quote": quote,
+            "Direction": direction,
+            "Pair Score": pair_score,
+            "Signal": signal,
+            "Confluence %": confidence,
+            "Final Score": final_score,
+            "Base Score": base_score,
+            "Quote Score": quote_score,
+            "Conflicts": "⚠️" if conflicts else "✅",
+            "Base Reasons": currency_scores[base]["reasons"],
+            "Quote Reasons": currency_scores[quote]["reasons"],
+            "Base Conflicts": currency_scores[base].get("conflicts", []),
+            "Quote Conflicts": currency_scores[quote].get("conflicts", []),
+        })
+    return sorted(pairs, key=lambda x: x["Final Score"], reverse=True)
