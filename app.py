@@ -87,7 +87,7 @@ with tab1:
                 conflict_warn = " ⚠️" if conflicts else ""
                 st.markdown(
                     f"**{base_flag}{quote_flag} {p['Pair']}** — Score: `+{p['Pair Score']}` | "
-                    f"Confluence: `{p['Confluence']}%` | {p['Signal']}{conflict_warn}"
+                    f"Confluence: `{p['Confluence %']}%` | {p['Signal']}{conflict_warn}"
                 )
 
         with col2:
@@ -99,7 +99,7 @@ with tab1:
                 conflict_warn = " ⚠️" if conflicts else ""
                 st.markdown(
                     f"**{base_flag}{quote_flag} {p['Pair']}** — Score: `-{p['Pair Score']}` | "
-                    f"Confluence: `{p['Confluence']}%` | {p['Signal']}{conflict_warn}"
+                    f"Confluence: `{p['Confluence %']}%` | {p['Signal']}{conflict_warn}"
                 )
 
         st.subheader("📊 All Pairs Ranked")
