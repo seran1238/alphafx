@@ -73,14 +73,14 @@ def get_central_bank_bias(currency):
             "last_change": "Hold",
             "rate": 3.625,
             "trend": "Holding",
-            "note": "Hawkish dot plot - 9/18 sehen Hike bis EOY. Fed Chair Warsh Aera."
+            "note": "NFP Jun +57K (Miss). PCE Mai 4.1%. Core PCE 3.4%. GDP Q1 2.1%. Sep-Hike ~50/50. USD mixed."
         },
         "EUR": {
             "bias": "Hawkish",
             "last_change": "Hike",
             "rate": 2.25,
             "trend": "Hiking",
-            "note": "Erste Erhoehung seit Sep 2023 (Jun 11). Hormuz-Oelschock treibt HICP auf 3.0%."
+            "note": "ECB 2.25%. EUR CPI Jun 2.8% (von 3.2%) ueberraschend tief. Druck fuer Hike nimmt ab. 23. Jul."
         },
         "GBP": {
             "bias": "Neutral",
