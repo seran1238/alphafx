@@ -53,6 +53,13 @@ def get_upcoming_events(currency):
     return relevant[:5]
 
 def get_central_bank_bias(currency):
+    # Auto-update via FXMacroData
+    try:
+        from cb_bias_auto import get_cb_bias_auto
+        return get_cb_bias_auto(currency)
+    except:
+        pass
+    # Fallback manuell
     """
     Zentralbank Bias — manuell gepflegt.
     Letzte Aktualisierung: 28. Juni 2026

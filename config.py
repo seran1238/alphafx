@@ -3,3 +3,5 @@ import os
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "2J9BYH0WDS1GXQJ2")
 FRED_KEY = os.environ.get("FRED_KEY", "a41f249712a566a797be3003eb8c7e11")
 CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "AUD", "CAD", "NZD"]
+
+FXMACRO_KEY = "TnwzG2h2Nj65k_WOAGX3llnWVto42VW6A3T8jid-AtM"
