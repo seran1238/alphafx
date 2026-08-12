@@ -1,138 +1,251 @@
 import requests
+import streamlit as st
 from config import FRED_KEY
 
 FRED_SERIES = {
     "USD": {
-        "rate": "FEDFUNDS",
-        "cpi": "CPIAUCSL",
-        "gdp": "GDP",
+        "rate":         "FEDFUNDS",
+        "cpi":          "CPIAUCSL",
+        "core_cpi":     "CPILFESL",
+        "ppi":          "PPIACO",
+        "gdp":          "GDP",
         "unemployment": "UNRATE",
-        "trade": "BOPGSTB"
+        "trade":        "BOPGSTB",
+        "retail":       "RSAFS",
+        "pmi_mfg":      "MANEMP",
+        "debt_gdp":     "GFDEGDQ188S",
     },
     "EUR": {
-        "rate": "ECBDFR",
-        "cpi": "CP0000EZ19M086NEST",
-        "gdp": "EURGDPNQDSMEI",
+        "rate":         "ECBDFR",
+        "cpi":          "CP0000EZ19M086NEST",
+        "core_cpi":     "CPGRLE01EZM659N",
+        "ppi":          "PPIACZ01EZM661N",
+        "gdp":          "EURGDPNQDSMEI",
         "unemployment": "LRHUTTTTEZM156S",
-        "trade": "XTEXVA01EZM667S"
+        "trade":        "XTEXVA01EZM667S",
+        "retail":       "SLRTTO02EZM657S",
+        "pmi_mfg":      "PRMNTO01EZM659S",
+        "debt_gdp":     "DEUGGDTAQDSNALQ",
     },
     "GBP": {
-        "rate": "BOEBCPD",
-        "cpi": "GBRCPIALLMINMEI",
-        "gdp": "UKNGDP",
+        "rate":         "BOEBCPD",
+        "cpi":          "GBRCPIALLMINMEI",
+        "core_cpi":     "CPGRLE01GBM659N",
+        "ppi":          "PPIACZ01GBM661N",
+        "gdp":          "UKNGDP",
         "unemployment": "LRHUTTTTGBM156S",
-        "trade": "XTEXVA01GBM667S"
+        "trade":        "XTEXVA01GBM667S",
+        "retail":       "SLRTTO02GBM657S",
+        "pmi_mfg":      "PRMNTO01GBM659S",
+        "debt_gdp":     "GBRGGDTAQDSNALQ",
     },
     "JPY": {
-        "rate": "IRSTJPN",
-        "cpi": "JPNCPIALLMINMEI",
-        "gdp": "JPNNGDP",
+        "rate":         "IRSTJPN",
+        "cpi":          "JPNCPIALLMINMEI",
+        "core_cpi":     "CPGRLE01JPM659N",
+        "ppi":          "PPIACZ01JPM661N",
+        "gdp":          "JPNNGDP",
         "unemployment": "LRHUTTTTJPM156S",
-        "trade": "XTEXVA01JPM667S"
+        "trade":        "XTEXVA01JPM667S",
+        "retail":       "SLRTTO02JPM657S",
+        "pmi_mfg":      "PRMNTO01JPM659S",
+        "debt_gdp":     "JPNGGDTAQDSNALQ",
     },
     "CHF": {
-        "rate": "IRSTCHF",
-        "cpi": "CHECPIALLMINMEI",
-        "gdp": "CHENGDPNQDSMEI",
+        "rate":         "IRSTCHF",
+        "cpi":          "CHECPIALLMINMEI",
+        "core_cpi":     "CPGRLE01CHM659N",
+        "ppi":          "PPIACZ01CHM661N",
+        "gdp":          "CHENGDPNQDSMEI",
         "unemployment": "LRHUTTTTCHM156S",
-        "trade": "XTEXVA01CHM667S"
+        "trade":        "XTEXVA01CHM667S",
+        "retail":       "SLRTTO02CHM657S",
+        "pmi_mfg":      "PRMNTO01CHM659S",
+        "debt_gdp":     "CHEGGDTAQDSNALQ",
     },
     "AUD": {
-        "rate": "IRSTAUD",
-        "cpi": "AUSCPIALLMINMEI",
-        "gdp": "AUSGDPNQDSMEI",
+        "rate":         "IRSTAUD",
+        "cpi":          "AUSCPIALLMINMEI",
+        "core_cpi":     "CPGRLE01AUM659N",
+        "ppi":          "PPIACZ01AUM661N",
+        "gdp":          "AUSGDPNQDSMEI",
         "unemployment": "LRHUTTTTAUM156S",
-        "trade": "XTEXVA01AUM667S"
+        "trade":        "XTEXVA01AUM667S",
+        "retail":       "SLRTTO02AUM657S",
+        "pmi_mfg":      "PRMNTO01AUM659S",
+        "debt_gdp":     "AUSGGDTAQDSNALQ",
     },
     "CAD": {
-        "rate": "IRSTCAD",
-        "cpi": "CANCPIALLMINMEI",
-        "gdp": "CANGDPNQDSMEI",
+        "rate":         "IRSTCAD",
+        "cpi":          "CANCPIALLMINMEI",
+        "core_cpi":     "CPGRLE01CAM659N",
+        "ppi":          "PPIACZ01CAM661N",
+        "gdp":          "CANGDPNQDSMEI",
         "unemployment": "LRHUTTTTCAM156S",
-        "trade": "XTEXVA01CAM667S"
+        "trade":        "XTEXVA01CAM667S",
+        "retail":       "SLRTTO02CAM657S",
+        "pmi_mfg":      "PRMNTO01CAM659S",
+        "debt_gdp":     "CANGGDTAQDSNALQ",
     },
     "NZD": {
-        "rate": "IRSTNZD",
-        "cpi": "NZLCPIALLMINMEI",
-        "gdp": "NZLNGDPNQDSMEI",
+        "rate":         "IRSTNZD",
+        "cpi":          "NZLCPIALLMINMEI",
+        "core_cpi":     "CPGRLE01NZM659N",
+        "ppi":          "PPIACZ01NZM661N",
+        "gdp":          "NZLNGDPNQDSMEI",
         "unemployment": "LRHUTTTTCZM156S",
-        "trade": "XTEXVA01NZM667S"
+        "trade":        "XTEXVA01NZM667S",
+        "retail":       "SLRTTO02NZM657S",
+        "pmi_mfg":      "PRMNTO01NZM659S",
+        "debt_gdp":     "NZLGGDTAQDSNALQ",
     },
 }
 
+
+@st.cache_data(ttl=86400)
 def get_fred_series(series_id):
-    url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_KEY}&file_type=json&sort_order=desc&limit=3"
+    url = (
+        f"https://api.stlouisfed.org/fred/series/observations"
+        f"?series_id={series_id}&api_key={FRED_KEY}"
+        f"&file_type=json&sort_order=desc&limit=4"
+    )
     try:
         r = requests.get(url, timeout=5)
         data = r.json()
         if "observations" in data:
-            vals = [float(o["value"]) for o in data["observations"] if o["value"] != "."]
-            return vals
+            return [float(o["value"]) for o in data["observations"] if o["value"] != "."]
     except:
         pass
     return []
 
+
 def get_fundamental_score(currency):
     series = FRED_SERIES.get(currency, {})
-    score = 0
+    signals = []
     details = {}
 
-    # Interest Rate — most important
-    rate_data = get_fred_series(series.get("rate", ""))
-    if len(rate_data) >= 2:
-        if rate_data[0] > rate_data[1]:
-            score += 30
-            details["Rate"] = "+30 (Rising)"
-        elif rate_data[0] < rate_data[1]:
-            score -= 30
-            details["Rate"] = "-30 (Falling)"
+    # 1. Interest Rate Momentum
+    rate = get_fred_series(series.get("rate", ""))
+    if len(rate) >= 2:
+        if rate[0] > rate[1]:
+            signals.append(1)
+            details["Rate"] = f"✅ Rising ({rate[0]:.2f}%)"
+        elif rate[0] < rate[1]:
+            signals.append(-1)
+            details["Rate"] = f"❌ Falling ({rate[0]:.2f}%)"
         else:
-            details["Rate"] = "0 (Unchanged)"
-        if rate_data[0] > 3:
-            score += 10
-            details["Rate Level"] = "+10 (High)"
-        elif rate_data[0] < 1:
-            score -= 10
-            details["Rate Level"] = "-10 (Low)"
+            signals.append(0)
+            details["Rate"] = f"⚪ Unchanged ({rate[0]:.2f}%)"
 
-    # CPI Inflation
-    cpi_data = get_fred_series(series.get("cpi", ""))
-    if len(cpi_data) >= 2:
-        if cpi_data[0] > cpi_data[1]:
-            score += 10
-            details["CPI"] = "+10 (Rising)"
+    # 2. Rate Level
+    if rate:
+        if rate[0] > 3:
+            signals.append(1)
+            details["Rate Level"] = f"✅ High ({rate[0]:.2f}%)"
+        elif rate[0] < 0.5:
+            signals.append(-1)
+            details["Rate Level"] = f"❌ Very Low ({rate[0]:.2f}%)"
         else:
-            score -= 5
-            details["CPI"] = "-5 (Falling)"
+            signals.append(0)
+            details["Rate Level"] = f"⚪ Neutral ({rate[0]:.2f}%)"
 
-    # GDP Growth
-    gdp_data = get_fred_series(series.get("gdp", ""))
-    if len(gdp_data) >= 2:
-        if gdp_data[0] > gdp_data[1]:
-            score += 20
-            details["GDP"] = "+20 (Growing)"
+    # 3. CPI Momentum
+    cpi = get_fred_series(series.get("cpi", ""))
+    if len(cpi) >= 2:
+        mom = ((cpi[0] - cpi[1]) / abs(cpi[1])) * 100 if cpi[1] != 0 else 0
+        if mom > 0.1:
+            signals.append(0.5)
+            details["CPI"] = f"🟡 Rising ({mom:+.2f}%)"
+        elif mom < -0.1:
+            signals.append(-0.5)
+            details["CPI"] = f"🟠 Falling ({mom:+.2f}%)"
         else:
-            score -= 15
-            details["GDP"] = "-15 (Shrinking)"
+            signals.append(0)
+            details["CPI"] = f"⚪ Stable"
 
-    # Unemployment
-    unemp_data = get_fred_series(series.get("unemployment", ""))
-    if len(unemp_data) >= 2:
-        if unemp_data[0] < unemp_data[1]:
-            score += 15
-            details["Unemployment"] = "+15 (Falling)"
+    # 4. Core CPI
+    core = get_fred_series(series.get("core_cpi", ""))
+    if len(core) >= 2:
+        mom = ((core[0] - core[1]) / abs(core[1])) * 100 if core[1] != 0 else 0
+        if mom > 0.1:
+            signals.append(0.5)
+            details["Core CPI"] = f"🟡 Rising ({mom:+.2f}%)"
+        elif mom < -0.1:
+            signals.append(-0.5)
+            details["Core CPI"] = f"🟠 Falling ({mom:+.2f}%)"
         else:
-            score -= 10
-            details["Unemployment"] = "-10 (Rising)"
+            signals.append(0)
+            details["Core CPI"] = f"⚪ Stable"
 
-    # Trade Balance
-    trade_data = get_fred_series(series.get("trade", ""))
-    if len(trade_data) >= 2:
-        if trade_data[0] > trade_data[1]:
-            score += 10
-            details["Trade"] = "+10 (Improving)"
+    # 5. PPI
+    ppi = get_fred_series(series.get("ppi", ""))
+    if len(ppi) >= 2:
+        if ppi[0] > ppi[1]:
+            signals.append(0.5)
+            details["PPI"] = f"✅ Rising"
         else:
-            score -= 5
-            details["Trade"] = "-5 (Worsening)"
+            signals.append(-0.5)
+            details["PPI"] = f"❌ Falling"
 
-    return score, details
+    # 6. GDP
+    gdp = get_fred_series(series.get("gdp", ""))
+    if len(gdp) >= 2:
+        if gdp[0] > gdp[1]:
+            signals.append(1)
+            details["GDP"] = f"✅ Growing"
+        else:
+            signals.append(-1)
+            details["GDP"] = f"❌ Shrinking"
+
+    # 7. Unemployment
+    unemp = get_fred_series(series.get("unemployment", ""))
+    if len(unemp) >= 2:
+        if unemp[0] < unemp[1]:
+            signals.append(1)
+            details["Unemployment"] = f"✅ Falling ({unemp[0]:.1f}%)"
+        else:
+            signals.append(-1)
+            details["Unemployment"] = f"❌ Rising ({unemp[0]:.1f}%)"
+
+    # 8. Retail Sales
+    retail = get_fred_series(series.get("retail", ""))
+    if len(retail) >= 2:
+        if retail[0] > retail[1]:
+            signals.append(1)
+            details["Retail Sales"] = f"✅ Growing"
+        else:
+            signals.append(-1)
+            details["Retail Sales"] = f"❌ Falling"
+
+    # 9. PMI Manufacturing
+    pmi = get_fred_series(series.get("pmi_mfg", ""))
+    if len(pmi) >= 2:
+        if pmi[0] > 50:
+            signals.append(1)
+            details["PMI Mfg"] = f"✅ Expansion ({pmi[0]:.1f})"
+        else:
+            signals.append(-1)
+            details["PMI Mfg"] = f"❌ Contraction ({pmi[0]:.1f})"
+
+    # 10. Debt-to-GDP
+    debt = get_fred_series(series.get("debt_gdp", ""))
+    if len(debt) >= 2:
+        if debt[0] < debt[1]:
+            signals.append(0.5)
+            details["Debt/GDP"] = f"✅ Falling ({debt[0]:.1f}%)"
+        else:
+            signals.append(-0.5)
+            details["Debt/GDP"] = f"🟠 Rising ({debt[0]:.1f}%)"
+
+    bullish = sum(1 for s in signals if s > 0)
+    bearish = sum(1 for s in signals if s < 0)
+    total = len(signals)
+    score = sum(signals)
+
+    return {
+        "score":   round(score, 1),
+        "bullish": bullish,
+        "bearish": bearish,
+        "total":   total,
+        "details": details,
+    }

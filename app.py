@@ -77,7 +77,7 @@ def trade_quality(confluence, abs_score):
     else:
         return "C"
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "🔥 Pair Dashboard",
     "🎯 Confluence",
     "🏦 COT Extremes",
@@ -85,7 +85,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "📈 Yield Curve & Seasonality",
     "📅 Event Calendar",
     "🗞️ Political Risk",
-    "📊 Economic Regime"
+    "📊 Economic Regime",
+    "🗺️ Signal Map"
 ])
 
 with tab1:
@@ -513,6 +514,130 @@ with tab8:
             use_container_width=True,
             hide_index=True
         )
+
+with tab9:
+    st.subheader("🗺️ Signal Map — Bullish vs Bearish")
+    st.caption("Jeder Punkt = ein Signal. Grüne Zone = Bullish, Rote Zone = Bearish")
+
+    from fundamentals import get_fundamental_score
+    from confluence import get_confluence_score
+    import random
+    FLAGS_MAP = {"USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧", "JPY": "🇯🇵",
+                 "CHF": "🇨🇭", "AUD": "🇦🇺", "CAD": "🇨🇦", "NZD": "🇳🇿"}
+
+    all_signals = []
+
+    SIGNAL_LABELS = {
+        0: "CB Bias",
+        1: "Rate Rank",
+        2: "COT",
+        3: "Yield Curve",
+        4: "Political Risk",
+        5: "Seasonality",
+        6: "Regime",
+        7: "Macro",
+    }
+
+    for c in CURRENCIES:
+        result = get_confluence_score(c)
+        reasons = result["reasons"]
+        for i, reason in enumerate(reasons):
+            if reason.startswith("✅"):
+                val = 1
+            elif reason.startswith("❌"):
+                val = -1
+            elif reason.startswith("🟡") or reason.startswith("🟠"):
+                val = 0.5 if "🟡" in reason else -0.5
+            else:
+                val = 0
+
+            if val != 0:
+                all_signals.append({
+                    "currency": c,
+                    "signal": SIGNAL_LABELS.get(i, f"Signal {i}"),
+                    "value": val,
+                    "reason": reason[:60],
+                    "y_jitter": val + random.uniform(-0.3, 0.3),
+                })
+
+    if all_signals:
+        import plotly.graph_objects as go
+
+        fig_map = go.Figure()
+
+        # Grüne Zone
+        fig_map.add_shape(type="rect",
+            x0=-0.5, x1=len(CURRENCIES)-0.5, y0=0.05, y1=1.5,
+            fillcolor="rgba(46,204,113,0.15)", line_width=0)
+
+        # Rote Zone
+        fig_map.add_shape(type="rect",
+            x0=-0.5, x1=len(CURRENCIES)-0.5, y0=-1.5, y1=-0.05,
+            fillcolor="rgba(231,76,60,0.15)", line_width=0)
+
+        # Neutrallinie
+        fig_map.add_hline(y=0, line_color="white", line_width=1, opacity=0.3)
+
+        colors = {
+            "USD": "#3498db", "EUR": "#2ecc71", "GBP": "#e74c3c",
+            "JPY": "#f39c12", "CHF": "#9b59b6", "AUD": "#1abc9c",
+            "CAD": "#e67e22", "NZD": "#e91e63"
+        }
+
+        for c in CURRENCIES:
+            c_signals = [s for s in all_signals if s["currency"] == c]
+            if not c_signals:
+                continue
+            x_idx = CURRENCIES.index(c)
+            fig_map.add_trace(go.Scatter(
+                x=[x_idx + random.uniform(-0.25, 0.25) for _ in c_signals],
+                y=[s["y_jitter"] for s in c_signals],
+                mode="markers",
+                marker=dict(
+                    size=14,
+                    color=[colors.get(c, "#fff") for _ in c_signals],
+                    symbol=["circle" if s["value"] > 0 else "x" for s in c_signals],
+                    line=dict(width=1, color="white"),
+                ),
+                name=c,
+                text=[s["reason"] for s in c_signals],
+                hovertemplate="%{text}<extra></extra>",
+            ))
+
+        fig_map.update_layout(
+            xaxis=dict(
+                tickvals=list(range(len(CURRENCIES))),
+                ticktext=[f"{FLAGS_MAP.get(c,'')} {c}" for c in CURRENCIES],
+                showgrid=False,
+            ),
+            yaxis=dict(
+                range=[-2, 2],
+                showgrid=False,
+                zeroline=False,
+                tickvals=[-1, -0.5, 0, 0.5, 1],
+                ticktext=["Strong Bearish", "Mild Bearish", "Neutral", "Mild Bullish", "Strong Bullish"],
+            ),
+            plot_bgcolor="#1e1e2e",
+            paper_bgcolor="#1e1e2e",
+            font_color="white",
+            height=500,
+            showlegend=True,
+            title="Signal Map — alle Währungen",
+            annotations=[
+                dict(x=len(CURRENCIES)/2, y=1.3, text="🟢 BULLISH ZONE",
+                     showarrow=False, font=dict(color="#2ecc71", size=14)),
+                dict(x=len(CURRENCIES)/2, y=-1.3, text="🔴 BEARISH ZONE",
+                     showarrow=False, font=dict(color="#e74c3c", size=14)),
+            ]
+        )
+        st.plotly_chart(fig_map, use_container_width=True)
+
+        # Tabelle darunter
+        st.markdown("**Signal Details**")
+        sig_df = pd.DataFrame(all_signals)[["currency","signal","value","reason"]]
+        sig_df.columns = ["Currency","Signal","Value","Reason"]
+        sig_df = sig_df.sort_values(["Currency","Value"], ascending=[True, False])
+        st.dataframe(sig_df, use_container_width=True, hide_index=True)
 
 st.markdown("---")
 st.caption(f"AlphaFX — Institutional Grade | Macro · COT · Rates · Yield Curve · Seasonality · GDELT Political Risk · Dalio Regime · Confluence | {datetime.now().strftime('%d.%m.%Y %H:%M')}")
