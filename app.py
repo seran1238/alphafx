@@ -77,7 +77,7 @@ def trade_quality(confluence, abs_score):
     else:
         return "C"
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🔥 Pair Dashboard",
     "🎯 Confluence",
     "🏦 COT Extremes",
@@ -86,7 +86,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "📅 Event Calendar",
     "🗞️ Political Risk",
     "📊 Economic Regime",
-    "🗺️ Signal Map"
+    "🗺️ Signal Map",
+    "📉 Fundamentals"
 ])
 
 with tab1:
@@ -638,6 +639,89 @@ with tab9:
         sig_df.columns = ["Currency","Signal","Value","Reason"]
         sig_df = sig_df.sort_values(["Currency","Value"], ascending=[True, False])
         st.dataframe(sig_df, use_container_width=True, hide_index=True)
+
+with tab10:
+    st.subheader("📉 Macro Fundamentals — FRED Data")
+    st.caption("10 Macro Signale pro Währung · Daten via FRED · 24h Cache")
+
+    from fundamentals import get_fundamental_score, FRED_SERIES
+    F = {"USD":"🇺🇸","EUR":"🇪🇺","GBP":"🇬🇧","JPY":"🇯🇵","CHF":"🇨🇭","AUD":"🇦🇺","CAD":"🇨🇦","NZD":"🇳🇿"}
+
+    selected_currency = st.selectbox(
+        "Währung auswählen",
+        CURRENCIES,
+        format_func=lambda c: F.get(c, "") + " " + c
+    )
+
+    with st.spinner(f"Lade Fundamentals für {selected_currency}..."):
+        result = get_fundamental_score(selected_currency)
+
+    col_a, col_b, col_c, col_d = st.columns(4)
+    with col_a:
+        score_color = "🟢" if result["score"] > 2 else "🔴" if result["score"] < -2 else "🟡"
+        st.metric("Macro Score", f"{score_color} {result['score']:+.1f}")
+    with col_b:
+        st.metric("Bullish Signals", f"✅ {result['bullish']}")
+    with col_c:
+        st.metric("Bearish Signals", f"❌ {result['bearish']}")
+    with col_d:
+        st.metric("Total Signals", f"📊 {result['total']}")
+
+    st.markdown("---")
+    st.markdown("**Signal Breakdown**")
+
+    detail_rows = []
+    for signal_name, signal_value in result["details"].items():
+        if "✅" in signal_value:
+            direction = "Bullish"
+        elif "❌" in signal_value:
+            direction = "Bearish"
+        else:
+            direction = "Neutral"
+        detail_rows.append({
+            "Signal": signal_name,
+            "Value": signal_value,
+            "Direction": direction,
+        })
+
+    detail_df = pd.DataFrame(detail_rows)
+    st.dataframe(detail_df, use_container_width=True, hide_index=True)
+
+    # Alle Währungen Übersicht
+    st.markdown("---")
+    st.markdown("**Macro Score Übersicht — Alle Währungen**")
+
+    with st.spinner("Lade alle Fundamentals..."):
+        all_fund = []
+        for c in CURRENCIES:
+            r = get_fundamental_score(c)
+            all_fund.append({
+                "Currency": F.get(c, "") + " " + c,
+                "Score": r["score"],
+                "Bullish": r["bullish"],
+                "Bearish": r["bearish"],
+                "Signal": "🟢 Bullish" if r["score"] > 2 else "🔴 Bearish" if r["score"] < -2 else "🟡 Neutral",
+            })
+
+    fund_df = pd.DataFrame(all_fund).sort_values("Score", ascending=False)
+    st.dataframe(fund_df, use_container_width=True, hide_index=True)
+
+    # Bar Chart
+    fig_fund = go.Figure(go.Bar(
+        x=fund_df["Currency"],
+        y=fund_df["Score"],
+        marker_color=["#2ecc71" if s > 0 else "#e74c3c" for s in fund_df["Score"]],
+    ))
+    fig_fund.update_layout(
+        title="Macro Fundamental Score — Alle Währungen",
+        yaxis_title="Score",
+        plot_bgcolor="#1e1e2e",
+        paper_bgcolor="#1e1e2e",
+        font_color="white",
+        height=300,
+        showlegend=False,
+    )
+    st.plotly_chart(fig_fund, use_container_width=True)
 
 st.markdown("---")
 st.caption(f"AlphaFX — Institutional Grade | Macro · COT · Rates · Yield Curve · Seasonality · GDELT Political Risk · Dalio Regime · Confluence | {datetime.now().strftime('%d.%m.%Y %H:%M')}")
