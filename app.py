@@ -496,7 +496,7 @@ with tab7:
 
 with tab8:
     st.subheader("📊 Economic Regime — Dalio Four Quadrants")
-    st.caption("Based on Growth Momentum + Inflation Momentum from FRED data")
+    st.caption("Based on Growth Momentum + Inflation Momentum from FXMacroData")
     regime_data = []
     for c in CURRENCIES:
         try:
@@ -641,10 +641,10 @@ with tab9:
         st.dataframe(sig_df, use_container_width=True, hide_index=True)
 
 with tab10:
-    st.subheader("📉 Macro Fundamentals — FRED Data")
-    st.caption("10 Macro Signale pro Währung · Daten via FRED · 24h Cache")
+    st.subheader("📉 Macro Fundamentals — FXMacroData")
+    st.caption("8 Macro Signale pro Währung · Daten via FXMacroData · 24h Cache")
 
-    from fundamentals import get_fundamental_score, FRED_SERIES
+    from fundamentals import get_fundamental_score
     F = {"USD":"🇺🇸","EUR":"🇪🇺","GBP":"🇬🇧","JPY":"🇯🇵","CHF":"🇨🇭","AUD":"🇦🇺","CAD":"🇨🇦","NZD":"🇳🇿"}
 
     selected_currency = st.selectbox(
