@@ -1,27 +1,12 @@
 import requests
 import streamlit as st
-from config import FRED_KEY
+from config import FXMACRO_KEY
 
-IP_SERIES = {
-    "USD": "INDPRO",
-    "EUR": "PRMNTO01EZM659S",
-    "GBP": "GBRPROINDMISMEI",
-    "JPY": "JPNPROINDMISMEI",
-    "CHF": "CHEPROINDMISMEI",
-    "AUD": "AUSPROINDMISMEI",
-    "CAD": "CANPROINDMISMEI",
-    "NZD": "NZLPROINDMISMEI",
-}
+BASE_URL = "https://api.fxmacrodata.com/v1"
 
-CPI_SERIES = {
-    "USD": "CPIAUCSL",
-    "EUR": "CP0000EZ19M086NEST",
-    "GBP": "GBRCPIALLMINMEI",
-    "JPY": "JPNCPIALLMINMEI",
-    "CHF": "CHECPIALLMINMEI",
-    "AUD": "AUSCPIALLMINMEI",
-    "CAD": "CANCPIALLMINMEI",
-    "NZD": "NZLCPIALLMINMEI",
+CURRENCY_MAP = {
+    "USD": "usd", "EUR": "eur", "GBP": "gbp", "JPY": "jpy",
+    "CHF": "chf", "AUD": "aud", "CAD": "cad", "NZD": "nzd",
 }
 
 REGIME_META = {
@@ -50,41 +35,38 @@ REGIME_BIAS = {
     },
 }
 
-
-def _fetch_fred(series_id, limit=7):
-    url = (
-        f"https://api.stlouisfed.org/fred/series/observations"
-        f"?series_id={series_id}&api_key={FRED_KEY}"
-        f"&file_type=json&sort_order=desc&limit={limit}"
-    )
+@st.cache_data(ttl=86400)
+def _fetch(code, indicator, limit=4):
     try:
-        r = requests.get(url, timeout=6)
-        return [
-            float(o["value"])
-            for o in r.json().get("observations", [])
-            if o["value"] != "."
-        ]
-    except Exception:
-        return []
+        url = f"{BASE_URL}/announcements/{code}/{indicator}?api_key={FXMACRO_KEY}&limit={limit}"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            return r.json().get("data", [])
+    except:
+        pass
+    return []
 
-
-def _momentum(series, periods=3):
-    if len(series) <= periods:
-        return None
-    latest, prior = series[0], series[periods]
-    return ((latest - prior) / abs(prior)) * 100 if prior != 0 else None
-
-
-@st.cache_data(ttl=86400)  # 24 Stunden
+@st.cache_data(ttl=86400)
 def get_regime(anchor="USD"):
-    ip_data  = _fetch_fred(IP_SERIES.get(anchor,  "INDPRO"))
-    cpi_data = _fetch_fred(CPI_SERIES.get(anchor, "CPIAUCSL"))
+    code = CURRENCY_MAP.get(anchor, "usd")
 
-    growth_mom    = _momentum(ip_data,  3)
-    inflation_mom = _momentum(cpi_data, 3)
+    # GDP Momentum
+    gdp_data = _fetch(code, "gdp", limit=4)
+    gdp_mom = None
+    if len(gdp_data) >= 2:
+        latest = gdp_data[0]["val"]
+        prior = gdp_data[1]["val"]
+        if prior != 0:
+            gdp_mom = ((latest - prior) / abs(prior)) * 100
 
-    growth_rising    = growth_mom    is not None and growth_mom    > 0
-    inflation_rising = inflation_mom is not None and inflation_mom > 0
+    # CPI Momentum
+    cpi_data = _fetch(code, "inflation", limit=4)
+    cpi_mom = None
+    if len(cpi_data) >= 2:
+        cpi_mom = cpi_data[0]["val"] - cpi_data[1]["val"]
+
+    growth_rising    = gdp_mom is not None and gdp_mom > 0
+    inflation_rising = cpi_mom is not None and cpi_mom > 0
 
     name, emoji, desc = REGIME_META[(growth_rising, inflation_rising)]
 
@@ -92,18 +74,16 @@ def get_regime(anchor="USD"):
         "regime":        name,
         "emoji":         emoji,
         "description":   desc,
-        "growth_mom":    round(growth_mom,    3) if growth_mom    is not None else None,
-        "inflation_mom": round(inflation_mom, 3) if inflation_mom is not None else None,
+        "growth_mom":    round(gdp_mom, 3) if gdp_mom is not None else None,
+        "inflation_mom": round(cpi_mom, 3) if cpi_mom is not None else None,
         "currency_bias": REGIME_BIAS[name],
     }
-
 
 def get_regime_bias(currency):
     r = get_regime()
     score = r["currency_bias"].get(currency, 0)
     label = f"{r['emoji']} {r['regime']} → {r['description']}"
     return score, label
-
 
 def get_regime_display():
     r = get_regime()
