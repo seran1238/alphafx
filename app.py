@@ -518,15 +518,26 @@ with tab8:
 
 with tab9:
     st.subheader("🗺️ Signal Map — Bullish vs Bearish")
-    st.caption("Jeder Punkt = ein Signal. Grüne Zone = Bullish, Rote Zone = Bearish")
+    st.caption("Jeder Punkt = ein Signal-Typ. Farbe = Kategorie. Grün = Bullish, Rot = Bearish.")
 
     from fundamentals import get_fundamental_score
     from confluence import get_confluence_score
     import random
+
     FLAGS_MAP = {"USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧", "JPY": "🇯🇵",
                  "CHF": "🇨🇭", "AUD": "🇦🇺", "CAD": "🇨🇦", "NZD": "🇳🇿"}
 
-    all_signals = []
+    # Farben pro Signal-Typ
+    SIGNAL_COLORS = {
+        "CB Bias":       "#f39c12",
+        "Rate Rank":     "#e67e22",
+        "COT":           "#9b59b6",
+        "Yield Curve":   "#3498db",
+        "Political Risk":"#e74c3c",
+        "Seasonality":   "#1abc9c",
+        "Regime":        "#f1c40f",
+        "Macro":         "#2ecc71",
+    }
 
     SIGNAL_LABELS = {
         0: "CB Bias",
@@ -539,26 +550,45 @@ with tab9:
         7: "Macro",
     }
 
+    all_signals = []
+    currency_scores = {}
+
     for c in CURRENCIES:
         result = get_confluence_score(c)
         reasons = result["reasons"]
+        bull = result["bullish_count"]
+        bear = result["bearish_count"]
+        total = result["total"]
+        currency_scores[c] = {
+            "net": bull - bear,
+            "bull": bull,
+            "bear": bear,
+            "total": total,
+            "direction": result["direction"],
+        }
+
         for i, reason in enumerate(reasons):
             if reason.startswith("✅"):
                 val = 1
             elif reason.startswith("❌"):
                 val = -1
-            elif reason.startswith("🟡") or reason.startswith("🟠"):
-                val = 0.5 if "🟡" in reason else -0.5
+            elif "🟡" in reason:
+                val = 0.5
+            elif "🟠" in reason:
+                val = -0.5
             else:
                 val = 0
 
             if val != 0:
+                signal_name = SIGNAL_LABELS.get(i, f"Signal {i}")
                 all_signals.append({
                     "currency": c,
-                    "signal": SIGNAL_LABELS.get(i, f"Signal {i}"),
+                    "signal": signal_name,
                     "value": val,
-                    "reason": reason[:60],
-                    "y_jitter": val + random.uniform(-0.3, 0.3),
+                    "reason": reason[:70],
+                    "color": SIGNAL_COLORS.get(signal_name, "#ffffff"),
+                    "y_jitter": val + random.uniform(-0.25, 0.25),
+                    "x_jitter": CURRENCIES.index(c) + random.uniform(-0.3, 0.3),
                 })
 
     if all_signals:
@@ -568,68 +598,96 @@ with tab9:
 
         # Grüne Zone
         fig_map.add_shape(type="rect",
-            x0=-0.5, x1=len(CURRENCIES)-0.5, y0=0.05, y1=1.5,
-            fillcolor="rgba(46,204,113,0.15)", line_width=0)
+            x0=-0.5, x1=len(CURRENCIES)-0.5, y0=0.05, y1=1.6,
+            fillcolor="rgba(46,204,113,0.12)", line_width=0)
 
         # Rote Zone
         fig_map.add_shape(type="rect",
-            x0=-0.5, x1=len(CURRENCIES)-0.5, y0=-1.5, y1=-0.05,
-            fillcolor="rgba(231,76,60,0.15)", line_width=0)
+            x0=-0.5, x1=len(CURRENCIES)-0.5, y0=-1.6, y1=-0.05,
+            fillcolor="rgba(231,76,60,0.12)", line_width=0)
 
         # Neutrallinie
-        fig_map.add_hline(y=0, line_color="white", line_width=1, opacity=0.3)
+        fig_map.add_hline(y=0, line_color="rgba(255,255,255,0.3)", line_width=1)
 
-        colors = {
-            "USD": "#3498db", "EUR": "#2ecc71", "GBP": "#e74c3c",
-            "JPY": "#f39c12", "CHF": "#9b59b6", "AUD": "#1abc9c",
-            "CAD": "#e67e22", "NZD": "#e91e63"
-        }
+        # Trennlinien pro Währung
+        for i in range(len(CURRENCIES)):
+            fig_map.add_vline(x=i+0.5,
+                line_color="rgba(255,255,255,0.05)", line_width=1)
 
-        for c in CURRENCIES:
-            c_signals = [s for s in all_signals if s["currency"] == c]
-            if not c_signals:
+        # Pro Signal-Typ eine eigene Trace (für Legende)
+        for sig_type, color in SIGNAL_COLORS.items():
+            type_signals = [s for s in all_signals if s["signal"] == sig_type]
+            if not type_signals:
                 continue
-            x_idx = CURRENCIES.index(c)
             fig_map.add_trace(go.Scatter(
-                x=[x_idx + random.uniform(-0.25, 0.25) for _ in c_signals],
-                y=[s["y_jitter"] for s in c_signals],
+                x=[s["x_jitter"] for s in type_signals],
+                y=[s["y_jitter"] for s in type_signals],
                 mode="markers",
+                name=sig_type,
                 marker=dict(
-                    size=14,
-                    color=[colors.get(c, "#fff") for _ in c_signals],
-                    symbol=["circle" if s["value"] > 0 else "x" for s in c_signals],
-                    line=dict(width=1, color="white"),
+                    size=[18 if abs(s["value"]) == 1 else 12 for s in type_signals],
+                    color=color,
+                    symbol=["circle" if s["value"] > 0 else "x" for s in type_signals],
+                    line=dict(width=1.5, color="white"),
+                    opacity=0.9,
                 ),
-                name=c,
-                text=[s["reason"] for s in c_signals],
-                hovertemplate="%{text}<extra></extra>",
+                text=[f"{s['currency']}: {s['reason']}" for s in type_signals],
+                hovertemplate="<b>%{text}</b><extra></extra>",
             ))
+
+        # Currency Score Balken am unteren Rand
+        for c in CURRENCIES:
+            score = currency_scores.get(c, {})
+            net = score.get("net", 0)
+            color = "#2ecc71" if net > 0 else "#e74c3c" if net < 0 else "#95a5a6"
+            direction = score.get("direction", "NEUTRAL")
+            fig_map.add_annotation(
+                x=CURRENCIES.index(c),
+                y=-1.85,
+                text=f"<b>{net:+d}</b>",
+                showarrow=False,
+                font=dict(color=color, size=13),
+            )
 
         fig_map.update_layout(
             xaxis=dict(
                 tickvals=list(range(len(CURRENCIES))),
                 ticktext=[f"{FLAGS_MAP.get(c,'')} {c}" for c in CURRENCIES],
                 showgrid=False,
+                tickfont=dict(size=13),
             ),
             yaxis=dict(
-                range=[-2, 2],
+                range=[-2.1, 1.8],
                 showgrid=False,
                 zeroline=False,
                 tickvals=[-1, -0.5, 0, 0.5, 1],
-                ticktext=["Strong Bearish", "Mild Bearish", "Neutral", "Mild Bullish", "Strong Bullish"],
+                ticktext=["▼ Strong Bear", "▼ Mild Bear", "— Neutral", "▲ Mild Bull", "▲ Strong Bull"],
             ),
             plot_bgcolor="#1e1e2e",
             paper_bgcolor="#1e1e2e",
             font_color="white",
-            height=500,
+            height=560,
             showlegend=True,
-            title="Signal Map — alle Währungen",
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.15,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=11),
+                bgcolor="rgba(0,0,0,0)",
+            ),
+            title=dict(
+                text="Signal Map — alle Währungen  |  Grösse = Signalstärke  |  Farbe = Signal-Typ",
+                font=dict(size=13),
+            ),
             annotations=[
-                dict(x=len(CURRENCIES)/2, y=1.3, text="🟢 BULLISH ZONE",
-                     showarrow=False, font=dict(color="#2ecc71", size=14)),
-                dict(x=len(CURRENCIES)/2, y=-1.3, text="🔴 BEARISH ZONE",
-                     showarrow=False, font=dict(color="#e74c3c", size=14)),
-            ]
+                dict(x=len(CURRENCIES)/2 - 0.5, y=1.55, text="🟢 BULLISH ZONE",
+                     showarrow=False, font=dict(color="#2ecc71", size=12)),
+                dict(x=len(CURRENCIES)/2 - 0.5, y=-1.55, text="🔴 BEARISH ZONE",
+                     showarrow=False, font=dict(color="#e74c3c", size=12)),
+            ],
+            margin=dict(t=80, b=60),
         )
         st.plotly_chart(fig_map, use_container_width=True)
 
