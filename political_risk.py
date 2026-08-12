@@ -1,6 +1,6 @@
 import requests
 from datetime import datetime, timedelta
-from functools import lru_cache
+import streamlit as st
 from calendar_data import FINNHUB_KEY
 
 COUNTRY_KEYWORDS = {
@@ -34,7 +34,7 @@ GDELT_THEMES = {
     "NZD": "ECON_CENTRALBANK+NEWZEALAND",
 }
 
-@lru_cache(maxsize=8)
+@st.cache_data(ttl=21600)  # 6 Stunden
 def get_gdelt_tone(currency):
     """Holt durchschnittlichen Tone-Score aus GDELT GKG fuer diese Waehrung."""
     try:
@@ -68,7 +68,7 @@ def get_gdelt_tone(currency):
         pass
     return None
 
-@lru_cache(maxsize=8)
+@st.cache_data(ttl=21600)  # 6 Stunden
 def get_political_risk_score(currency):
     headlines = []
     score = 0

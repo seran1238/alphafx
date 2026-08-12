@@ -14,6 +14,10 @@ from political_risk import get_political_risk_score, get_political_risk_label
 
 st.set_page_config(page_title="AlphaFX", layout="wide", page_icon="📡")
 
+# Auto-Refresh alle 60 Minuten
+from streamlit_autorefresh import st_autorefresh
+st_autorefresh(interval=3600000, key="autorefresh")
+
 flags = {"USD":"🇺🇸","EUR":"🇪🇺","GBP":"🇬🇧","JPY":"🇯🇵","CHF":"🇨🇭","AUD":"🇦🇺","CAD":"🇨🇦","NZD":"🇳🇿"}
 
 col1, col2 = st.columns([3,1])

@@ -2,6 +2,7 @@ import requests
 import zipfile
 import io
 import pandas as pd
+import streamlit as st
 from functools import lru_cache
 
 COT_MARKETS = {

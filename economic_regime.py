@@ -1,5 +1,5 @@
 import requests
-from functools import lru_cache
+import streamlit as st
 from config import FRED_KEY
 
 IP_SERIES = {
@@ -75,7 +75,7 @@ def _momentum(series, periods=3):
     return ((latest - prior) / abs(prior)) * 100 if prior != 0 else None
 
 
-@lru_cache(maxsize=4)
+@st.cache_data(ttl=86400)  # 24 Stunden
 def get_regime(anchor="USD"):
     ip_data  = _fetch_fred(IP_SERIES.get(anchor,  "INDPRO"))
     cpi_data = _fetch_fred(CPI_SERIES.get(anchor, "CPIAUCSL"))
