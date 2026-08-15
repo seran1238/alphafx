@@ -148,6 +148,24 @@ def get_fundamental_score(currency):
             signals.append(-0.5)
             details["Trade Balance"] = f"🟠 Deficit"
 
+    # 9. Retail Sales
+    retail_data = _fetch(code, "retail_sales")
+    if len(retail_data) >= 2:
+        retail = retail_data[0]["val"]
+        prev_retail = retail_data[1]["val"]
+        if retail > 0 and retail > prev_retail:
+            signals.append(1)
+            details["Retail Sales"] = f"✅ Growing & Accelerating ({retail:.1f}%)"
+        elif retail > 0:
+            signals.append(0.5)
+            details["Retail Sales"] = f"🟡 Growing ({retail:.1f}%)"
+        elif retail < 0 and retail < prev_retail:
+            signals.append(-1)
+            details["Retail Sales"] = f"❌ Falling & Decelerating ({retail:.1f}%)"
+        else:
+            signals.append(-0.5)
+            details["Retail Sales"] = f"🟠 Weak ({retail:.1f}%)"
+
     bullish = sum(1 for s in signals if s > 0)
     bearish = sum(1 for s in signals if s < 0)
     total = len(signals)
