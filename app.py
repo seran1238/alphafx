@@ -77,7 +77,7 @@ def trade_quality(confluence, abs_score):
     else:
         return "C"
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "🔥 Pair Dashboard",
     "🎯 Confluence",
     "🏦 COT Extremes",
@@ -87,7 +87,6 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🗞️ Political Risk",
     "📊 Economic Regime",
     "🗺️ Signal Map",
-    "📉 Fundamentals"
 ])
 
 with tab1:
@@ -635,18 +634,21 @@ with tab9:
                 hovertemplate="<b>%{text}</b><extra></extra>",
             ))
 
-        # Currency Score Balken am unteren Rand
+        # Currency Score Balken am unteren Rand — gleicher Score wie Confluence
         for c in CURRENCIES:
             score = currency_scores.get(c, {})
             net = score.get("net", 0)
-            color = "#2ecc71" if net > 0 else "#e74c3c" if net < 0 else "#95a5a6"
+            bear = score.get("bear", 0)
+            bull = score.get("bull", 0)
             direction = score.get("direction", "NEUTRAL")
+            color = "#2ecc71" if direction == "BULLISH" else "#e74c3c" if direction == "BEARISH" else "#95a5a6"
+            label = f"▲ {bull}B/{bear}b" if direction == "BULLISH" else f"▼ {bull}B/{bear}b" if direction == "BEARISH" else f"— {bull}B/{bear}b"
             fig_map.add_annotation(
                 x=CURRENCIES.index(c),
-                y=-1.85,
-                text=f"<b>{net:+d}</b>",
+                y=-2.0,
+                text=f"<b>{direction[:4]}</b><br>{bull}✅ {bear}❌",
                 showarrow=False,
-                font=dict(color=color, size=13),
+                font=dict(color=color, size=11),
             )
 
         fig_map.update_layout(
@@ -657,7 +659,7 @@ with tab9:
                 tickfont=dict(size=13),
             ),
             yaxis=dict(
-                range=[-2.1, 1.8],
+                range=[-2.0, 1.8],
                 showgrid=False,
                 zeroline=False,
                 tickvals=[-1, -0.5, 0, 0.5, 1],
@@ -666,7 +668,7 @@ with tab9:
             plot_bgcolor="#1e1e2e",
             paper_bgcolor="#1e1e2e",
             font_color="white",
-            height=560,
+            height=620,
             showlegend=True,
             legend=dict(
                 orientation="h",
@@ -687,99 +689,49 @@ with tab9:
                 dict(x=len(CURRENCIES)/2 - 0.5, y=-1.55, text="🔴 BEARISH ZONE",
                      showarrow=False, font=dict(color="#e74c3c", size=12)),
             ],
-            margin=dict(t=80, b=60),
+            margin=dict(t=40, b=80),
         )
+        # Direction Bar oberhalb des Charts
+        dir_cols = st.columns(len(CURRENCIES))
+        for idx, c in enumerate(CURRENCIES):
+            cs = currency_scores.get(c, {})
+            direction = cs.get("direction", "NEUTRAL")
+            bull = cs.get("bull", 0)
+            bear = cs.get("bear", 0)
+            if direction == "BULLISH":
+                color = "🟢"
+            elif direction == "BEARISH":
+                color = "🔴"
+            elif direction == "MIXED":
+                color = "🟡"
+            else:
+                color = "⚪"
+            with dir_cols[idx]:
+                st.markdown(f"<div style='text-align:center;font-size:12px'><b>{FLAGS_MAP.get(c,'')} {c}</b><br>{color} {direction[:4]}<br>{bull}✅ {bear}❌</div>", unsafe_allow_html=True)
+
         st.plotly_chart(fig_map, use_container_width=True)
 
-        # Tabelle darunter
-        st.markdown("**Signal Details**")
+        # Fundamentals Details pro Währung
+        st.markdown("---")
+        st.markdown("**📊 Macro Fundamentals — Signal Details pro Währung**")
+
+        fund_cols = st.columns(4)
+        for idx, c in enumerate(CURRENCIES):
+            with fund_cols[idx % 4]:
+                fund = get_fundamental_score(c)
+                score = fund["score"]
+                color = "🟢" if score > 2 else "🔴" if score < -2 else "🟡"
+                with st.expander(f"{FLAGS_MAP.get(c,'')} {c}  {color} {score:+.1f}"):
+                    for sig_name, sig_val in fund["details"].items():
+                        st.markdown(f"- **{sig_name}**: {sig_val}")
+
+        # Signal Tabelle
+        st.markdown("---")
+        st.markdown("**Alle Confluence Signale**")
         sig_df = pd.DataFrame(all_signals)[["currency","signal","value","reason"]]
         sig_df.columns = ["Currency","Signal","Value","Reason"]
         sig_df = sig_df.sort_values(["Currency","Value"], ascending=[True, False])
         st.dataframe(sig_df, use_container_width=True, hide_index=True)
-
-with tab10:
-    st.subheader("📉 Macro Fundamentals — FXMacroData")
-    st.caption("8 Macro Signale pro Währung · Daten via FXMacroData · 24h Cache")
-
-    from fundamentals import get_fundamental_score
-    F = {"USD":"🇺🇸","EUR":"🇪🇺","GBP":"🇬🇧","JPY":"🇯🇵","CHF":"🇨🇭","AUD":"🇦🇺","CAD":"🇨🇦","NZD":"🇳🇿"}
-
-    selected_currency = st.selectbox(
-        "Währung auswählen",
-        CURRENCIES,
-        format_func=lambda c: F.get(c, "") + " " + c
-    )
-
-    with st.spinner(f"Lade Fundamentals für {selected_currency}..."):
-        result = get_fundamental_score(selected_currency)
-
-    col_a, col_b, col_c, col_d = st.columns(4)
-    with col_a:
-        score_color = "🟢" if result["score"] > 2 else "🔴" if result["score"] < -2 else "🟡"
-        st.metric("Macro Score", f"{score_color} {result['score']:+.1f}")
-    with col_b:
-        st.metric("Bullish Signals", f"✅ {result['bullish']}")
-    with col_c:
-        st.metric("Bearish Signals", f"❌ {result['bearish']}")
-    with col_d:
-        st.metric("Total Signals", f"📊 {result['total']}")
-
-    st.markdown("---")
-    st.markdown("**Signal Breakdown**")
-
-    detail_rows = []
-    for signal_name, signal_value in result["details"].items():
-        if "✅" in signal_value:
-            direction = "Bullish"
-        elif "❌" in signal_value:
-            direction = "Bearish"
-        else:
-            direction = "Neutral"
-        detail_rows.append({
-            "Signal": signal_name,
-            "Value": signal_value,
-            "Direction": direction,
-        })
-
-    detail_df = pd.DataFrame(detail_rows)
-    st.dataframe(detail_df, use_container_width=True, hide_index=True)
-
-    # Alle Währungen Übersicht
-    st.markdown("---")
-    st.markdown("**Macro Score Übersicht — Alle Währungen**")
-
-    with st.spinner("Lade alle Fundamentals..."):
-        all_fund = []
-        for c in CURRENCIES:
-            r = get_fundamental_score(c)
-            all_fund.append({
-                "Currency": F.get(c, "") + " " + c,
-                "Score": r["score"],
-                "Bullish": r["bullish"],
-                "Bearish": r["bearish"],
-                "Signal": "🟢 Bullish" if r["score"] > 2 else "🔴 Bearish" if r["score"] < -2 else "🟡 Neutral",
-            })
-
-    fund_df = pd.DataFrame(all_fund).sort_values("Score", ascending=False)
-    st.dataframe(fund_df, use_container_width=True, hide_index=True)
-
-    # Bar Chart
-    fig_fund = go.Figure(go.Bar(
-        x=fund_df["Currency"],
-        y=fund_df["Score"],
-        marker_color=["#2ecc71" if s > 0 else "#e74c3c" for s in fund_df["Score"]],
-    ))
-    fig_fund.update_layout(
-        title="Macro Fundamental Score — Alle Währungen",
-        yaxis_title="Score",
-        plot_bgcolor="#1e1e2e",
-        paper_bgcolor="#1e1e2e",
-        font_color="white",
-        height=300,
-        showlegend=False,
-    )
-    st.plotly_chart(fig_fund, use_container_width=True)
 
 st.markdown("---")
 st.caption(f"AlphaFX — Institutional Grade | Macro · COT · Rates · Yield Curve · Seasonality · GDELT Political Risk · Dalio Regime · Confluence | {datetime.now().strftime('%d.%m.%Y %H:%M')}")
