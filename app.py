@@ -77,7 +77,7 @@ def trade_quality(confluence, abs_score):
     else:
         return "C"
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🔥 Pair Dashboard",
     "🎯 Confluence",
     "🏦 COT Extremes",
@@ -87,6 +87,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "🗞️ Political Risk",
     "📊 Economic Regime",
     "🗺️ Signal Map",
+    "🔬 Backtesting",
 ])
 
 with tab1:
@@ -732,6 +733,96 @@ with tab9:
         sig_df.columns = ["Currency","Signal","Value","Reason"]
         sig_df = sig_df.sort_values(["Currency","Value"], ascending=[True, False])
         st.dataframe(sig_df, use_container_width=True, hide_index=True)
+
+with tab10:
+    st.subheader("🔬 Backtesting — CB Signal Performance")
+    st.caption("Wie oft war der CB Bias ein korrekter Indikator für FX Performance?")
+
+    from backtesting import run_backtest
+
+    col_cur, col_fwd = st.columns(2)
+    with col_cur:
+        bt_currency = st.selectbox("Währung", [c for c in CURRENCIES if c != "USD"], key="bt_cur")
+    with col_fwd:
+        bt_weeks = st.selectbox("Forward Weeks", [2, 4, 8, 12], index=1, key="bt_weeks")
+
+    with st.spinner(f"Backtesting {bt_currency} ({bt_weeks}w forward)..."):
+        result = run_backtest(bt_currency, forward_weeks=bt_weeks)
+
+    if result:
+        col_a, col_b, col_c, col_d = st.columns(4)
+        with col_a:
+            color = "🟢" if result["hit_rate"] >= 55 else "🔴" if result["hit_rate"] < 45 else "🟡"
+            st.metric("Hit Rate", f"{color} {result['hit_rate']}%")
+        with col_b:
+            st.metric("Total Signals", result["total"])
+        with col_c:
+            st.metric("Correct", f"✅ {result['correct']}")
+        with col_d:
+            st.metric("Wrong", f"❌ {result['total'] - result['correct']}")
+
+        st.markdown("---")
+
+        col_e, col_f = st.columns(2)
+        with col_e:
+            st.metric("Avg Gain (correct)", f"+{result['avg_gain']:.2f}%")
+        with col_f:
+            st.metric("Avg Loss (wrong)", f"{result['avg_loss']:.2f}%")
+
+        st.markdown("**Signal History**")
+        df_display = result["df"].copy()
+        df_display["correct"] = df_display["correct"].map({True: "✅", False: "❌"})
+        df_display["pct_change"] = df_display["pct_change"].apply(lambda x: f"{x:+.3f}%")
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+        # Chart
+        import plotly.graph_objects as go
+        fig_bt = go.Figure()
+        df_r = result["df"]
+        colors = ["#2ecc71" if c else "#e74c3c" for c in df_r["correct"]]
+        fig_bt.add_trace(go.Bar(
+            x=df_r["date"],
+            y=df_r["pct_change"],
+            marker_color=colors,
+            name="FX Return",
+            text=[f"{'✅' if c else '❌'} {p:+.2f}%" for c, p in zip(df_r["correct"], df_r["pct_change"])],
+            textposition="outside",
+        ))
+        fig_bt.add_hline(y=0, line_color="white", line_width=1, opacity=0.3)
+        fig_bt.update_layout(
+            title=f"{bt_currency} — CB Signal Performance ({bt_weeks}W Forward)",
+            yaxis_title="FX Return %",
+            plot_bgcolor="#1e1e2e",
+            paper_bgcolor="#1e1e2e",
+            font_color="white",
+            height=350,
+            showlegend=False,
+        )
+        st.plotly_chart(fig_bt, use_container_width=True)
+
+        # Alle Währungen Overview
+        st.markdown("---")
+        st.markdown("**Alle Währungen Übersicht**")
+        if st.button("🔄 Run All Currencies"):
+            all_results = []
+            for c in CURRENCIES:
+                if c == "USD":
+                    continue
+                with st.spinner(f"Backtesting {c}..."):
+                    r = run_backtest(c, forward_weeks=bt_weeks)
+                if r:
+                    all_results.append({
+                        "Currency": f"{FLAGS.get(c,'')} {c}",
+                        "Hit Rate": f"{r['hit_rate']}%",
+                        "Signals": r["total"],
+                        "Correct": r["correct"],
+                        "Avg Gain": f"+{r['avg_gain']:.2f}%",
+                        "Avg Loss": f"{r['avg_loss']:.2f}%",
+                    })
+            if all_results:
+                st.dataframe(pd.DataFrame(all_results), use_container_width=True, hide_index=True)
+    else:
+        st.warning("Keine Daten verfügbar für dieses Währungspaar.")
 
 st.markdown("---")
 st.caption(f"AlphaFX — Institutional Grade | Macro · COT · Rates · Yield Curve · Seasonality · GDELT Political Risk · Dalio Regime · Confluence | {datetime.now().strftime('%d.%m.%Y %H:%M')}")
