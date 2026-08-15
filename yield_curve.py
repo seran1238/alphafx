@@ -1,78 +1,94 @@
 import requests
-from config import FRED_KEY
+import time
+import streamlit as st
+from config import FXMACRO_KEY
 
-YIELD_SERIES = {
-    "USD": {"2y": "DGS2", "10y": "DGS10"},
-    "EUR": {"2y": None, "10y": "IRLTLT01EZM156N"},
-    "GBP": {"2y": None, "10y": "IRLTLT01GBM156N"},
-    "JPY": {"2y": None, "10y": "IRLTLT01JPM156N"},
-    "CHF": {"2y": None, "10y": "IRLTLT01CHM156N"},
-    "AUD": {"2y": None, "10y": "IRLTLT01AUM156N"},
-    "CAD": {"2y": None, "10y": "IRLTLT01CAM156N"},
-    "NZD": {"2y": None, "10y": "IRLTLT01NZM156N"},
+BASE_URL = "https://api.fxmacrodata.com/v1"
+
+CURRENCY_MAP = {
+    "USD": "usd", "EUR": "eur", "GBP": "gbp", "JPY": "jpy",
+    "CHF": "chf", "AUD": "aud", "CAD": "cad", "NZD": "nzd",
 }
 
-# Zentralbank Rate als Proxy für 2y wenn keine Daten
-CB_RATES = {
-    "USD": 3.625, "EUR": 2.00, "GBP": 3.75,
-    "JPY": 0.75, "CHF": 0.00, "AUD": 4.35,
-    "CAD": 2.75, "NZD": 2.25
-}
-
-def get_fred(series_id, limit=2):
-    if not series_id:
-        return []
-    url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_KEY}&file_type=json&sort_order=desc&limit={limit}"
-    try:
-        r = requests.get(url, timeout=5)
-        data = r.json()
-        if "observations" in data:
-            return [float(o["value"]) for o in data["observations"] if o["value"] != "."]
-    except:
-        pass
+@st.cache_data(ttl=86400)
+def _fetch_yield(code, indicator):
+    for attempt in range(3):
+        try:
+            url = f"{BASE_URL}/announcements/{code}/{indicator}?api_key={FXMACRO_KEY}&limit=3"
+            r = requests.get(url, timeout=15)
+            if r.status_code == 200:
+                data = r.json().get("data", [])
+                if data:
+                    return [d["val"] for d in data]
+        except Exception:
+            time.sleep(1)
     return []
 
 def get_yield_curve_score(currency):
-    series = YIELD_SERIES.get(currency, {})
+    code = CURRENCY_MAP.get(currency)
+    if not code:
+        return 0, {}
+
     score = 0
     details = {}
 
-    y10_data = get_fred(series.get("10y"))
-    y2_data = get_fred(series.get("2y"))
+    y2_data  = _fetch_yield(code, "gov_bond_2y")
+    y10_data = _fetch_yield(code, "gov_bond_10y")
 
-    # Nutze CB Rate als Proxy für 2y wenn keine Daten
+    # Fallback: nutze Policy Rate als 2y Proxy
+    if not y2_data:
+        try:
+            from cb_bias_auto import get_cb_bias_auto
+            cb = get_cb_bias_auto(currency)
+            y2 = cb["rate"]
+        except:
+            y2 = None
+    else:
+        y2 = y2_data[0]
+
     y10 = y10_data[0] if y10_data else None
-    y2 = y2_data[0] if y2_data else CB_RATES.get(currency)
 
-    if y10 and y2:
+    if y10 is not None and y2 is not None:
         spread = y10 - y2
-        if spread > 0.5:
+
+        if spread > 1.0:
+            score += 25
+            details["Yield Curve"] = f"✅ Steil +{spread:.2f}% — Starkes Wachstum"
+        elif spread > 0.5:
             score += 20
-            details["Yield Curve"] = f"✅ Normal +{spread:.2f}% — Growth Expected"
+            details["Yield Curve"] = f"✅ Normal +{spread:.2f}% — Wachstum erwartet"
         elif spread > 0:
             score += 10
-            details["Yield Curve"] = f"🟡 Flat +{spread:.2f}% — Uncertain"
+            details["Yield Curve"] = f"🟡 Flach +{spread:.2f}% — Unsicher"
         elif spread > -0.5:
             score -= 10
-            details["Yield Curve"] = f"🟠 Slightly Inverted {spread:.2f}%"
+            details["Yield Curve"] = f"🟠 Leicht invertiert {spread:.2f}%"
         else:
             score -= 25
-            details["Yield Curve"] = f"🔴 Inverted {spread:.2f}% — Recession Risk"
+            details["Yield Curve"] = f"🔴 Invertiert {spread:.2f}% — Rezessionsrisiko"
 
-        if len(y10_data) >= 2 and y2:
+        # Trend
+        if len(y10_data) >= 2:
             prev_spread = y10_data[1] - y2
-            if spread > prev_spread:
+            if spread > prev_spread + 0.05:
                 score += 5
                 details["YC Trend"] = "📈 Steepening"
-            else:
+            elif spread < prev_spread - 0.05:
                 score -= 5
                 details["YC Trend"] = "📉 Flattening"
+            else:
+                details["YC Trend"] = "➡️ Stable"
+
+        details["2y"] = f"{y2:.2f}%"
+        details["10y"] = f"{y10:.2f}%"
+
     elif y10:
-        details["Yield Curve"] = f"10y: {y10:.2f}% (no 2y data)"
+        details["Yield Curve"] = f"10y: {y10:.2f}% (kein 2y)"
     else:
         details["Yield Curve"] = "N/A"
 
     return score, details
+
 
 def get_all_yield_curves():
     from config import CURRENCIES
@@ -84,6 +100,6 @@ def get_all_yield_curves():
             "score": score,
             "details": details,
             "yield_curve": details.get("Yield Curve", "N/A"),
-            "trend": details.get("YC Trend", "N/A")
+            "trend": details.get("YC Trend", "N/A"),
         })
     return results
